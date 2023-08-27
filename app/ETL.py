@@ -19,7 +19,7 @@ def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
     historical_volatility_1mo =  daily_returns.std() * vol_scale_1mo
 
     # Capital Asset Pricing Model
-    risk_free_rate = yf.download('^IRX', period='1d')['Adj Close'].values[0] / 100
+    risk_free_rate = yf.download('^IRX', period='1mo')['Adj Close'].values[-1] / 100
     mean_daily_returns = daily_returns.mean()
     mean_annual_returns = (1 + mean_daily_returns)**252 - 1
     returns_correlation_matrix = daily_returns.corr()
@@ -65,7 +65,7 @@ def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodL
 
     example: calculate_expected_returns(10,8.0,0.2,10,1.96)
     """
-    expectedReturn = expectedReturn/100
+    expectedReturn = expectedReturn
     periodLenghtinDays = int(periodLenghtInYears*365.25)
  
     futurePricesLn = np.array([np.log(currentPrice)]*periodLenghtinDays)

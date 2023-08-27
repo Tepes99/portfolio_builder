@@ -103,3 +103,6 @@ def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodL
 # %%
 fprices, ci_low, ci_high = ETL.calculate_expected_returns(10,8.0,0.2,10,1.96)
 # %%
+import yfinance as yf
+yf.download('^IRX', period='1mo')['Adj Close'][-1] / 100
+# %%
