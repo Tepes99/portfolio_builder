@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import yfinance as yf
-
+import ETL
+#%%
 #All_country_world_index = yf.download(tickers='ACWI', period='5y')['Adj Close']
 
 def get_raw_price_data(tickers:list)-> pd.DataFrame:
@@ -77,4 +78,28 @@ contribution = pd.Series({
 })
 # %%
 key_figures = calculate_key_figures(contribution)
+
+# %%
+import numpy as np
+def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodLenghtInYears, z) -> (np.ndarray,np.ndarray,np.ndarray):
+    """
+    Returns the mean, lower bound and higher bound for future prices based on
+    geometric brownian motion.
+
+    example: calculate_expected_returns(10,8.0,0.2,10,1.96)
+    """
+    expectedReturn = expectedReturn/100
+    periodLenghtinDays = int(periodLenghtInYears*365.25)
+ 
+    futurePricesLn = np.array([np.log(currentPrice)]*periodLenghtinDays)
+    confidenceIntervalsLn = np.array([z*volatility] * periodLenghtinDays)
+    futurePricesLn = futurePricesLn + (np.arange(1, periodLenghtinDays+1)/365.25)*(expectedReturn - (volatility**2)/2)
+    confidenceIntervalsLn = confidenceIntervalsLn * np.sqrt(np.arange(1,periodLenghtinDays+1)/365.25)
+    futurePrices = np.exp(futurePricesLn)
+    confidenceIntervalLow = np.exp(futurePricesLn - confidenceIntervalsLn)
+    confidenceIntervalHigh = np.exp(futurePricesLn + confidenceIntervalsLn)
+    return futurePrices, confidenceIntervalLow, confidenceIntervalHigh
+
+# %%
+fprices, ci_low, ci_high = ETL.calculate_expected_returns(10,8.0,0.2,10,1.96)
 # %%

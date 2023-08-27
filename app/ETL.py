@@ -1,7 +1,5 @@
-#%%
 import pandas as pd
 import numpy as np
-import datetime as dt
 import yfinance as yf
 
 def get_raw_price_data(tickers:list)-> pd.DataFrame:
@@ -13,7 +11,6 @@ def get_raw_price_data(tickers:list)-> pd.DataFrame:
     prices.rename(columns={'ACWI':'Market'}, inplace = True)
     return prices
 
-#%%
 def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
     prices = get_raw_price_data(contribution.index.tolist())
     # One month historcal volatility using 21 trading days per month
@@ -60,3 +57,22 @@ def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
         'amount': contribution.sum()
     }
     return key_figures
+
+def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodLenghtInYears, z) -> (np.ndarray, np.ndarray, np.ndarray):
+    """
+    Returns the mean, lower bound and higher bound for future prices based on
+    geometric brownian motion.
+
+    example: calculate_expected_returns(10,8.0,0.2,10,1.96)
+    """
+    expectedReturn = expectedReturn/100
+    periodLenghtinDays = int(periodLenghtInYears*365.25)
+ 
+    futurePricesLn = np.array([np.log(currentPrice)]*periodLenghtinDays)
+    confidenceIntervalsLn = np.array([z*volatility] * periodLenghtinDays)
+    futurePricesLn = futurePricesLn + (np.arange(1, periodLenghtinDays+1)/365.25)*(expectedReturn - (volatility**2)/2)
+    confidenceIntervalsLn = confidenceIntervalsLn * np.sqrt(np.arange(1,periodLenghtinDays+1)/365.25)
+    futurePrices = np.exp(futurePricesLn)
+    confidenceIntervalLow = np.exp(futurePricesLn - confidenceIntervalsLn)
+    confidenceIntervalHigh = np.exp(futurePricesLn + confidenceIntervalsLn)
+    return futurePrices, confidenceIntervalLow, confidenceIntervalHigh
