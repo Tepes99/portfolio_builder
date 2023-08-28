@@ -1,6 +1,20 @@
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+
+load_dotenv()
+
+# Access databse environment variables
+db_user = os.getenv('DB_USER')
+db_password = os.getenv('DB_PASSWORD')
+db_host = os.getenv('DB_HOST')
+db_port = os.getenv('DB_PORT')
+db_name = os.getenv('DB_NAME')
+
+engine = create_engine(f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
 def get_raw_price_data(tickers:list)-> pd.DataFrame:
     # ACWI or All Country Wide Index is an index with global equity exposure
@@ -76,3 +90,28 @@ def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodL
     confidenceIntervalLow = np.exp(futurePricesLn - confidenceIntervalsLn)
     confidenceIntervalHigh = np.exp(futurePricesLn + confidenceIntervalsLn)
     return futurePrices, confidenceIntervalLow, confidenceIntervalHigh
+
+def get_saved_portfolio(portfolio_name:str) -> pd.DataFrame:
+    query = f"""
+        select * from (
+        select * from portfolio_builder.example_portfolios
+        union
+        select * from portfolio_builder.portfolios) t
+        where portfolio_id = '{portfolio_name}'
+    """
+    return pd.read_sql(query, con=engine)
+
+def get_portfolio_names() -> pd.DataFrame:
+    query = f"""
+        select distinct portfolio_id from portfolio_builder.example_portfolios
+        union
+        select distinct portfolio_id from portfolio_builder.portfolios
+    """
+    return pd.read_sql(query, con=engine)
+
+def save_portfolio_to_db(contribution:pd.Series, portfolio_id:str):
+    key_figures = calculate_key_figures(contribution=contribution)
+    key_figures = key_figures.reset_index()
+    key_figures.rename(columns={'index': 'ticker'}, inplace=True)
+    key_figures.insert(0, 'portfolio_id', portfolio_id)
+    key_figures.to_sql('portfolios', engine,schema='portfolio_builder', if_exists='append', index=False)

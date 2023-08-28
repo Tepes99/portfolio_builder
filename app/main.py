@@ -9,7 +9,10 @@ import ETL as etl
 
 portfolio_assets = pd.DataFrame(columns=['Ticker Symbol', 'Amount'])
 
-app = Dash(__name__, prevent_initial_callbacks=True, external_stylesheets=[dbc.themes.LUX])
+saved_pf_ids = etl.get_portfolio_names()
+saved_pf_ids.loc['current'] = 'Current'
+
+app = Dash(__name__, prevent_initial_callbacks=False, external_stylesheets=[dbc.themes.LUX])
 server = app.server
 app.layout = dbc.Container(html.Div([
     html.H1(children='Portfolio Builder', style={'textAlign':'center'}),
@@ -31,6 +34,15 @@ app.layout = dbc.Container(html.Div([
     dbc.Row(dbc.Col(html.Div(id="components"),
                 width=12
     )),
+
+    dbc.Row(dbc.Col(html.Div(["Name of your portfolio: ",
+        dbc.Input(id="pf_name",value="my_portfolio",type= "text")]),
+                width=3
+    )),
+    html.Div(id='output-div'),
+
+    dbc.Button(id='save_portfolio', n_clicks=0, children='Save Portfolio'),
+
     dbc.Row(dbc.Col(html.Div(["Years: ",
         dbc.Input(id="years",value="10",type= "text")]),
                 width=3
@@ -46,7 +58,14 @@ app.layout = dbc.Container(html.Div([
         ],
         value='90%'), width=3
     )),
+    dbc.Row(dbc.Col(
+        dcc.Dropdown(
+            id='portfolio_id',
+            options=[{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']],
+            value='example1'), width=3
+    )),
     dbc.Button(id='createPortfolio', n_clicks=0, children='Create Projection'),
+
 
     dbc.Row([
         dbc.Col(dbc.Spinner(children=[dcc.Graph(id="graph")], color="success"),
@@ -90,16 +109,32 @@ def update_asset_list(add, delete, clear, ticker, amount):
         size='sm'
         )
 
-#Callback for the graphs and data table
+# Callback for saving the portfolio
+@app.callback(
+            Output('portfolio_id', 'options'),
+            [State('pf_name', 'value'),
+            Input('save_portfolio', 'n_clicks')])
+
+def save_portfolio(pf_name, save):
+    if pf_name not in saved_pf_ids.values:
+        print(pf_name)
+        etl.save_portfolio_to_db(contribution=portfolio_assets['Amount'], portfolio_id=pf_name)
+        saved_pf_ids.loc[pf_name] = pf_name
+    else:
+        print('already exists')
+    
+    return [{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']]
+# Callback for the graphs and data table
 @app.callback(
     Output(component_id= "graph", component_property= "figure"),
     Output(component_id= "breakdown", component_property= "children"),
     Output(component_id="pie-chart", component_property="figure"),
     [Input('createPortfolio', 'n_clicks'),
     State(component_id= "years", component_property= "value"),
-    State(component_id= "confidence", component_property= "value")])
+    State(component_id= "confidence", component_property= "value"),
+    State(component_id= "portfolio_id",component_property= "value")])
 
-def updatePlot(update, years, confidence):
+def updatePlot(update, years, confidence, portfolio_id):
     startDate = dt.datetime.now()
     endDate = startDate + dt.timedelta(days= int(years)*365)
     #Confidence level
@@ -111,9 +146,12 @@ def updatePlot(update, years, confidence):
         z = 1.960
     if confidence == '99%':
         z = 2.576
-    
-    portfolio = etl.calculate_key_figures(portfolio_assets['Amount'])
 
+    if portfolio_id == 'Current':
+        portfolio = etl.calculate_key_figures(portfolio_assets['Amount'])
+    else:
+        portfolio = etl.get_saved_portfolio(portfolio_name=portfolio_id)
+        portfolio.index = portfolio['ticker']
     growthRate = portfolio.loc["Portfolio","expected_return"]             
     purchaseAmount = portfolio.loc["Portfolio","amount"]
     volatility = portfolio.loc["Portfolio","historical_volatility"]
@@ -190,4 +228,4 @@ def updatePlot(update, years, confidence):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)
