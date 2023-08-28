@@ -1,4 +1,5 @@
 from dash import Dash, html, dcc, callback, callback_context, Output, Input, State
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
@@ -39,9 +40,13 @@ app.layout = dbc.Container(html.Div([
         dbc.Input(id="pf_name",value="my_portfolio",type= "text")]),
                 width=3
     )),
-    html.Div(id='output-div'),
+
 
     dbc.Button(id='save_portfolio', n_clicks=0, children='Save Portfolio'),
+    dbc.Button(id='remove_portfolio', n_clicks=0, children='Remove Portfolio'),
+    dbc.Button(id='remove_all_portfolios', n_clicks=0, children='Remove All Portfolios'),
+    html.Div(id='remove_pf'),
+    html.Div(id='remove_all_pfs'),
 
     dbc.Row(dbc.Col(html.Div(["Years: ",
         dbc.Input(id="years",value="10",type= "text")]),
@@ -64,8 +69,11 @@ app.layout = dbc.Container(html.Div([
             options=[{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']],
             value='example1'), width=3
     )),
-    dbc.Button(id='createPortfolio', n_clicks=0, children='Create Projection'),
-
+    dbc.Button(id='createPortfolio', n_clicks=0, children='Plot Portfolio'),
+    html.Div(id="not_found_tickers"),
+    html.Div(id="not_found_tickers_save"),
+    html.Div(id="already_exists_error"),
+    
 
     dbc.Row([
         dbc.Col(dbc.Spinner(children=[dcc.Graph(id="graph")], color="success"),
@@ -112,23 +120,52 @@ def update_asset_list(add, delete, clear, ticker, amount):
 # Callback for saving the portfolio
 @app.callback(
             Output('portfolio_id', 'options'),
+            Output('not_found_tickers_save', 'children'),
+            Output('already_exists_error', 'children'),
             [State('pf_name', 'value'),
-            Input('save_portfolio', 'n_clicks')])
+            Input('save_portfolio', 'n_clicks'),
+            Input('remove_portfolio', 'n_clicks'),
+            Input('remove_all_portfolios', 'n_clicks')])
 
-def save_portfolio(pf_name, save):
-    if pf_name not in saved_pf_ids.values:
-        print(pf_name)
-        etl.save_portfolio_to_db(contribution=portfolio_assets['Amount'], portfolio_id=pf_name)
-        saved_pf_ids.loc[pf_name] = pf_name
-    else:
-        print('already exists')
+def save_portfolio(pf_name, save, remove, remove_all):
+    not_found_tickers = set()
+    saved_pf_ids = etl.get_portfolio_names()
+    saved_pf_ids.loc['current'] = 'Current'
+    no_tickers_error = None
+    already_exists_error = None
+
+    ctx = callback_context
+    buttonPressed = ctx.triggered[0]['prop_id'].split('.')[0]
+    if buttonPressed == "save_portfolio":
+        if pf_name not in saved_pf_ids.values:
+            not_found_tickers = etl.save_portfolio_to_db(contribution=portfolio_assets['Amount'], portfolio_id=pf_name)
+            saved_pf_ids = etl.get_portfolio_names()
+            saved_pf_ids.loc['current'] = 'Current'
+        else:
+            already_exists_error = f'Error when saving the portfolio > Portfolio {pf_name} already exists'
+
+        if len(not_found_tickers):
+            no_tickers_error = f'Error when saving the portfolio > Could not find ticker(s): {not_found_tickers}'
+        else:
+            no_tickers_error = None
     
-    return [{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']]
+    if buttonPressed == "remove_portfolio":
+        etl.remove_portfolio_from_db(pf_name)
+        saved_pf_ids = etl.get_portfolio_names()
+        saved_pf_ids.loc['current'] = 'Current'
+    if buttonPressed == "remove_all_portfolios":
+        etl.remove_all_portfolios_from_db()
+        saved_pf_ids = etl.get_portfolio_names()
+        saved_pf_ids.loc['current'] = 'Current'
+    return [{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']], dcc.Markdown(no_tickers_error), dcc.Markdown(already_exists_error)
+
+
 # Callback for the graphs and data table
 @app.callback(
     Output(component_id= "graph", component_property= "figure"),
     Output(component_id= "breakdown", component_property= "children"),
     Output(component_id="pie-chart", component_property="figure"),
+    Output(component_id="not_found_tickers", component_property="children"),
     [Input('createPortfolio', 'n_clicks'),
     State(component_id= "years", component_property= "value"),
     State(component_id= "confidence", component_property= "value"),
@@ -147,11 +184,13 @@ def updatePlot(update, years, confidence, portfolio_id):
     if confidence == '99%':
         z = 2.576
 
+    
     if portfolio_id == 'Current':
-        portfolio = etl.calculate_key_figures(portfolio_assets['Amount'])
+        portfolio, not_found_tickers = etl.calculate_key_figures(portfolio_assets['Amount'])
     else:
         portfolio = etl.get_saved_portfolio(portfolio_name=portfolio_id)
         portfolio.index = portfolio['ticker']
+        not_found_tickers = set()
     growthRate = portfolio.loc["Portfolio","expected_return"]             
     purchaseAmount = portfolio.loc["Portfolio","amount"]
     volatility = portfolio.loc["Portfolio","historical_volatility"]
@@ -218,13 +257,17 @@ def updatePlot(update, years, confidence, portfolio_id):
         hovertemplate = "Expected return:%{customdata}: <br>Contribution: %{value} </br>Volatility:%{label}<br>Ticker:%{text}",
         
     ))
+    if len(not_found_tickers):
+        error_message = f'Error when plotting the portfolio > Could not find ticker(s): {not_found_tickers}'
+    else:
+        error_message = None
     return fig, dbc.Table.from_dataframe(
         portfolio,
         striped=True,
         bordered=True,
         hover=True,
         size='sm'
-        ), pie
+        ), pie, dcc.Markdown(error_message)
 
 
 if __name__ == '__main__':

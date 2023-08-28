@@ -3,7 +3,7 @@ import numpy as np
 import yfinance as yf
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
@@ -16,17 +16,22 @@ db_name = os.getenv('DB_NAME')
 
 engine = create_engine(f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
-def get_raw_price_data(tickers:list)-> pd.DataFrame:
+def get_raw_price_data(tickers:list) -> (pd.DataFrame, set):
     # ACWI or All Country Wide Index is an index with global equity exposure
     # and used here as the market
     tickers.append('ACWI')
     prices5y = yf.download(tickers=tickers, period='5y')
-    prices = prices5y['Adj Close']
+    prices = prices5y['Adj Close'].dropna(axis=1, how='all').dropna(axis=0)
+    not_found_tickers = set(tickers).difference(set(prices.columns))
     prices.rename(columns={'ACWI':'Market'}, inplace = True)
-    return prices
 
-def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
-    prices = get_raw_price_data(contribution.index.tolist())
+    if all(ticker in prices.columns for ticker in tickers):
+        return prices, not_found_tickers
+    else:
+        return prices, not_found_tickers
+
+def calculate_key_figures(contribution:pd.Series) -> (pd.DataFrame, set):
+    prices, not_found_tickers = get_raw_price_data(contribution.index.tolist())
     # One month historcal volatility using 21 trading days per month
     daily_returns = prices.pct_change().dropna()
     vol_scale_1mo= np.sqrt(21)
@@ -40,6 +45,7 @@ def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
     betas = returns_correlation_matrix['Market'] * ( daily_returns.var() / daily_returns['Market'].var())
     expected_returns = risk_free_rate + betas * (mean_annual_returns['Market'] - risk_free_rate)
 
+    contribution = contribution[~contribution.index.isin(not_found_tickers)]
     weights = contribution / contribution.sum()
 
     key_figures = pd.DataFrame({
@@ -70,7 +76,7 @@ def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
         'weight': 1.0,
         'amount': contribution.sum()
     }
-    return key_figures
+    return key_figures, not_found_tickers
 
 def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodLenghtInYears, z) -> (np.ndarray, np.ndarray, np.ndarray):
     """
@@ -110,8 +116,23 @@ def get_portfolio_names() -> pd.DataFrame:
     return pd.read_sql(query, con=engine)
 
 def save_portfolio_to_db(contribution:pd.Series, portfolio_id:str):
-    key_figures = calculate_key_figures(contribution=contribution)
-    key_figures = key_figures.reset_index()
-    key_figures.rename(columns={'index': 'ticker'}, inplace=True)
-    key_figures.insert(0, 'portfolio_id', portfolio_id)
-    key_figures.to_sql('portfolios', engine,schema='portfolio_builder', if_exists='append', index=False)
+    key_figures, not_found_tickers = calculate_key_figures(contribution=contribution)
+    if len(key_figures) > 1:
+        key_figures = key_figures.reset_index()
+        key_figures.rename(columns={'index': 'ticker'}, inplace=True)
+        key_figures.insert(0, 'portfolio_id', portfolio_id)
+        key_figures.to_sql('portfolios', engine,schema='portfolio_builder', if_exists='append', index=False)
+        return not_found_tickers
+    return not_found_tickers
+
+def remove_portfolio_from_db(portfolio_id:str):
+    remove_query = text(f"delete from portfolio_builder.portfolios where portfolio_id = '{portfolio_id}';")
+    with engine.connect() as connection:
+        connection.execute(remove_query)
+        connection.commit()
+
+def remove_all_portfolios_from_db():
+    truncate_query = text(f"truncate portfolio_builder.portfolios;")
+    with engine.connect() as connection:
+        connection.execute(truncate_query)
+        connection.commit()

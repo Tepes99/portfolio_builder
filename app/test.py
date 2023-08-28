@@ -7,7 +7,7 @@ import ETL
 #%%
 #All_country_world_index = yf.download(tickers='ACWI', period='5y')['Adj Close']
 
-def get_raw_price_data(tickers:list)-> pd.DataFrame:
+def get_raw_price_data1(tickers:list)-> pd.DataFrame:
     # ACWI or All Country Wide Index is an index with global equity exposure
     # and used here as the market
     tickers.append('ACWI')
@@ -18,7 +18,7 @@ def get_raw_price_data(tickers:list)-> pd.DataFrame:
 
 #%%
 def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
-    prices, not_found_tickers = get_raw_price_data_error(contribution.index.tolist())
+    prices, not_found_tickers = get_raw_price_data(contribution.index.tolist())
     # One month historcal volatility using 21 trading days per month
     daily_returns = prices.pct_change().dropna()
     vol_scale_1mo= np.sqrt(21)
@@ -32,6 +32,7 @@ def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
     betas = returns_correlation_matrix['Market'] * ( daily_returns.var() / daily_returns['Market'].var())
     expected_returns = risk_free_rate + betas * (mean_annual_returns['Market'] - risk_free_rate)
 
+    contribution = contribution[~contribution.index.isin(not_found_tickers)]
     weights = contribution / contribution.sum()
 
     key_figures = pd.DataFrame({
@@ -67,17 +68,17 @@ def calculate_key_figures(contribution:pd.Series) -> pd.DataFrame:
 
 # %%
 tlist=['MSFT', 'AAPL', 'SPY', 'F', 'TSLA']
-pf = get_raw_price_data(tickers=tlist)
+pf = get_raw_price_data1(tickers=tlist)
 # %%
 contribution = pd.Series({
     'AAPL':100,
     'BRK-A':500,
-    'JNJ':200,
+    'ASD':200,
     'AXP':100,
     'KO':50,
 })
 # %%
-key_figures = calculate_key_figures(contribution)
+key_figures, not_found = calculate_key_figures(contribution)
 
 # %%
 import numpy as np
@@ -194,7 +195,7 @@ print("Tickers not found:", not_found_tickers)
 # %%
 data = yf.download(tickers)['Adj Close']
 # %%
-def get_raw_price_data_error(tickers:list):
+def get_raw_price_data(tickers:list):
     # ACWI or All Country Wide Index is an index with global equity exposure
     # and used here as the market
     tickers.append('ACWI')
@@ -203,10 +204,31 @@ def get_raw_price_data_error(tickers:list):
     not_found_tickers = set(tickers).difference(set(prices.columns))
     prices.rename(columns={'ACWI':'Market'}, inplace = True)
 
-    if all(ticker in prices.columns for col in tickers):
+    if all(ticker in prices.columns for ticker in tickers):
         return prices, not_found_tickers
     else:
         return prices, not_found_tickers
 
 
+# %%
+from sqlalchemy import create_engine, text
+import os
+import pandas as pd
+from dotenv import load_dotenv
+# %%
+load_dotenv()
+
+# Access environment variables
+db_user = os.getenv('DB_USER')
+db_password = os.getenv('DB_PASSWORD')
+db_host = os.getenv('DB_HOST')
+db_port = os.getenv('DB_PORT')
+db_name = os.getenv('DB_NAME')
+
+engine = create_engine(f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+def remove_all_portfolios_from_db():
+    truncate_query = text(f"truncate portfolio_builder.portfolios;")
+    with engine.connect() as connection:
+        connection.execute(truncate_query)
+        connection.commit()
 # %%
