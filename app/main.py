@@ -18,6 +18,16 @@ server = app.server
 app.layout = dbc.Container(html.Div([
     html.H1(children='Portfolio Builder', style={'textAlign':'center'}),
 
+    dcc.Markdown('''
+    #### To add items to your current portfolio:
+    1. Input valid ticker symbol and planned purchase amount
+    2. Press add asset
+    3. Repeat till satisfied
+    4. Use remove and clear to clear mistakes
+    5. You can now save the portfolio by giving it a name or plot it by choosing "Current from the dropdown-menu below"
+
+    '''),
+
     dbc.Row(dbc.Col(html.Div(["Stock ticker: ",
         dbc.Input(id="ticker",value="SPY",type= "text")]),
                 width=12
@@ -28,6 +38,9 @@ app.layout = dbc.Container(html.Div([
     dbc.Button(id='addAssetButton', n_clicks=0, children='Add Asset'),
     dbc.Button(id='deleteAssetButton', n_clicks=0, children='Delete Asset'),
     dbc.Button(id='clearButton', n_clicks=0, children='Clear Portfolio'),
+    
+    html.Br(),
+    html.Br(),
 
     dcc.Markdown('''
     ###### Chosen assets:
@@ -48,12 +61,23 @@ app.layout = dbc.Container(html.Div([
     html.Div(id='remove_pf'),
     html.Div(id='remove_all_pfs'),
 
+    html.Br(),
+
+    dcc.Markdown('''
+    #### To plot your portfolio:
+    1. Select "Current" from dropdown-menu to use the portfolio you have build above. To use saved one, you can choose any of the other portfolios shown in the menu.
+    2. Input how many years to the future you cant to project
+    3. Choose the confidence interval for projection
+    4. Press Plot Portfolio
+    '''),
+
     dbc.Row(dbc.Col(html.Div(["Years: ",
         dbc.Input(id="years",value="10",type= "text")]),
                 width=3
     )),
 
-    dbc.Row(dbc.Col(dcc.Dropdown(
+    dbc.Row(dbc.Col(html.Div(["Confidence level: ",
+                              dcc.Dropdown(
         id='confidence',
         options=[
             {'label': 'Confidence level 50%', 'value': '50%'},
@@ -61,13 +85,13 @@ app.layout = dbc.Container(html.Div([
             {'label': 'Confidence level 95%', 'value': '95%'},
             {'label': 'Confidence level 99%', 'value': '99%'}
         ],
-        value='90%'), width=3
+        value='90%')]), width=3
     )),
-    dbc.Row(dbc.Col(
+    dbc.Row(dbc.Col(html.Div(["Portfolio name: ",
         dcc.Dropdown(
             id='portfolio_id',
             options=[{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']],
-            value='example1'), width=3
+            value='example1')]), width=3
     )),
     dbc.Button(id='createPortfolio', n_clicks=0, children='Plot Portfolio'),
     html.Div(id="not_found_tickers"),
@@ -83,8 +107,24 @@ app.layout = dbc.Container(html.Div([
     ]),
 
     dbc.Row(dbc.Col(dbc.Spinner(children=[html.Div(id="breakdown")], color="success"),
-                width=12)
-    ),
+                width=12)),
+
+    dcc.Markdown('''
+    
+    ###### The math
+
+    1. Expected returns are based on the Capital Asset Pricing Model. [AWCI](https://www.msci.com/acwi) is used as a market portfolio.
+
+    2. Daily data from  [yahoo finance](https://finance.yahoo.com) is used for the calculations.
+
+    3. Confidence levels follow log-normal distribution.
+
+    
+    @Teemu Saha.
+    [LinkedIn](https://linkedin.com/in/teemu-saha-18090b19b)
+    [GitHub](https://github.com/Tepes99/portfolio_builder)
+
+    '''),
 
 ]),fluid=True)
 
@@ -187,9 +227,13 @@ def updatePlot(update, years, confidence, portfolio_id):
     
     if portfolio_id == 'Current':
         portfolio, not_found_tickers = etl.calculate_key_figures(portfolio_assets['Amount'])
+        portfolio = portfolio.reset_index()
+        portfolio.index = portfolio['index']
+        portfolio.rename(columns={'index': 'ticker'}, inplace=True)
     else:
         portfolio = etl.get_saved_portfolio(portfolio_name=portfolio_id)
         portfolio.index = portfolio['ticker']
+        portfolio.drop('portfolio_id', axis=1, inplace=True)
         not_found_tickers = set()
     growthRate = portfolio.loc["Portfolio","expected_return"]             
     purchaseAmount = portfolio.loc["Portfolio","amount"]
