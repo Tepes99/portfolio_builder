@@ -22,10 +22,12 @@ app.layout = dbc.Container(html.Div([
     #### To add items to your current portfolio:
     1. Input valid ticker symbol and planned purchase amount
     2. Press add asset
-    3. Repeat till satisfied
-    4. Use remove and clear to clear mistakes
-    5. You can now save the portfolio by giving it a name or plot it by choosing "Current from the dropdown-menu below"
-
+    3. Use remove and clear buttons to clear mistakes
+    4. Repeat till satisfied
+    5. You can now save the portfolio by giving it a name or plot it by choosing "Current" from the dropdown-menu below
+    
+    Tip: Some common tickers are Apple Inc = AAPL, Meta = META, Ford Motor Co = F.
+    Find more on [yahoo finance](https://finance.yahoo.com)
     '''),
 
     dbc.Row(dbc.Col(html.Div(["Stock ticker: ",
