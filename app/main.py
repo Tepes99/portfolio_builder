@@ -13,9 +13,9 @@ portfolio_assets = pd.DataFrame(columns=['Ticker Symbol', 'Amount'])
 saved_pf_ids = etl.get_portfolio_names()
 saved_pf_ids.loc['current'] = 'Current'
 
-app = Dash(__name__, prevent_initial_callbacks=False, external_stylesheets=[dbc.themes.LUX])
-server = app.server
-app.layout = dbc.Container(html.Div([
+application = Dash(__name__, prevent_initial_callbacks=False, external_stylesheets=[dbc.themes.LUX])
+server = application.server
+application.layout = dbc.Container(html.Div([
     html.H1(children='Portfolio Builder', style={'textAlign':'center'}),
 
     dcc.Markdown('''
@@ -128,7 +128,7 @@ app.layout = dbc.Container(html.Div([
 
 ]),fluid=True)
 
-@app.callback(
+@application.callback(
     Output(component_id= "components", component_property= "children"),
     [Input('addAssetButton', 'n_clicks')],
     [Input('deleteAssetButton', 'n_clicks')],
@@ -158,7 +158,7 @@ def update_asset_list(add, delete, clear, ticker, amount):
         )
 
 # Callback for saving the portfolio
-@app.callback(
+@application.callback(
             Output('portfolio_id', 'options'),
             Output('not_found_tickers_save', 'children'),
             Output('already_exists_error', 'children'),
@@ -201,7 +201,7 @@ def save_portfolio(pf_name, save, remove, remove_all):
 
 
 # Callback for the graphs and data table
-@app.callback(
+@application.callback(
     Output(component_id= "graph", component_property= "figure"),
     Output(component_id= "breakdown", component_property= "children"),
     Output(component_id="pie-chart", component_property="figure"),
@@ -315,4 +315,4 @@ def updatePlot(update, years, confidence, portfolio_id):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    application.run_server(debug=False)
