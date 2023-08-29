@@ -12,6 +12,7 @@ dash-table==5.0.0
 Flask==2.2.5
 frozendict==2.3.8
 greenlet==2.0.2
+gunicorn==21.2.0
 html5lib==1.1
 idna==3.4
 itsdangerous==2.1.2
