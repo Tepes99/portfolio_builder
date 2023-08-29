@@ -315,4 +315,4 @@ def updatePlot(update, years, confidence, portfolio_id):
 
 
 if __name__ == '__main__':
-    application.run_server(debug=False)
+    application.run_server(debug=False, port=8080)
