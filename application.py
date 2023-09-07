@@ -23,7 +23,7 @@ app.layout = dbc.Container(html.Div([
     1. Input valid ticker symbol and planned purchase amount
     2. Press add asset
     3. Use remove and clear buttons to clear mistakes
-    4. Repeat till satisfied
+    4. Repeat until you are satisfied
     5. You can now save the portfolio by giving it a name or plot it by choosing "Current" from the dropdown-menu below
     
     Tip: Some common tickers are Apple Inc = AAPL, Meta = META, Ford Motor Co = F.
@@ -67,9 +67,9 @@ app.layout = dbc.Container(html.Div([
 
     dcc.Markdown('''
     #### To plot your portfolio:
-    1. Select "Current" from dropdown-menu to use the portfolio you have build above. To use saved one, you can choose any of the other portfolios shown in the menu.
-    2. Input how many years to the future you cant to project
-    3. Choose the confidence interval for projection
+    1. Select "Current" from the dropdown-menu to use the portfolio you have built above. To use a saved one, you can choose any of the other portfolios shown in the menu.
+    2. Input how many years to the future you want to plot the projection
+    3. Choose the confidence interval for the projection
     4. Press Plot Portfolio
     '''),
 
@@ -128,7 +128,7 @@ app.layout = dbc.Container(html.Div([
 
     '''),
 
-]),fluid=True)
+],style={'margin-left': '10%','margin-right': '10%',}),fluid=True)
 
 @app.callback(
     Output(component_id= "components", component_property= "children"),
