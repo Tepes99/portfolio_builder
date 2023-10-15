@@ -97,42 +97,71 @@ def calculate_expected_returns(currentPrice, expectedReturn, volatility, periodL
     confidenceIntervalHigh = np.exp(futurePricesLn + confidenceIntervalsLn)
     return futurePrices, confidenceIntervalLow, confidenceIntervalHigh
 
-def get_saved_portfolio(portfolio_name:str) -> pd.DataFrame:
+def get_saved_portfolio(portfolio_name:str, session_id:str) -> pd.DataFrame:
     query = f"""
-        select * from (
-        select * from portfolio_builder.example_portfolios
-        union
-        select * from portfolio_builder.portfolios) t
+        with session_portfolios as (
+        select 
+        portfolio_id,
+        ticker,
+        historical_return,
+        historical_volatility,
+        beta,
+        expected_return,
+        risk_free_rate,
+        weight,
+        amount
+        from portfolio_builder.portfolios
+        where session_id = '{session_id}'
+        ),
+
+        union_portfolios AS (
+            select *
+            from portfolio_builder.example_portfolios
+            union
+            select *
+            from session_portfolios
+        )
+
+        select *
+        from union_portfolios
         where portfolio_id = '{portfolio_name}'
+        order by amount asc
     """
     return pd.read_sql(query, con=engine)
 
-def get_portfolio_names() -> pd.DataFrame:
+def get_portfolio_names(session_id:str) -> pd.DataFrame:
     query = f"""
+        with session_portfolios as (
+        select distinct portfolio_id from portfolio_builder.portfolios
+        where session_id = '{session_id}'
+        )
+
         select distinct portfolio_id from portfolio_builder.example_portfolios
         union
-        select distinct portfolio_id from portfolio_builder.portfolios
+        select * from session_portfolios
+
     """
     return pd.read_sql(query, con=engine)
 
-def save_portfolio_to_db(contribution:pd.Series, portfolio_id:str):
+def save_portfolio_to_db(contribution:pd.Series, portfolio_id:str, session_id:str):
     key_figures, not_found_tickers = calculate_key_figures(contribution=contribution)
     if len(key_figures) > 1:
         key_figures = key_figures.reset_index()
         key_figures.rename(columns={'index': 'ticker'}, inplace=True)
         key_figures.insert(0, 'portfolio_id', portfolio_id)
+        key_figures.insert(0, 'session_id', session_id)
         key_figures.to_sql('portfolios', engine,schema='portfolio_builder', if_exists='append', index=False)
         return not_found_tickers
     return not_found_tickers
 
-def remove_portfolio_from_db(portfolio_id:str):
-    remove_query = text(f"delete from portfolio_builder.portfolios where portfolio_id = '{portfolio_id}';")
+def remove_portfolio_from_db(portfolio_id:str, session_id:str):
+    remove_query = text(f"delete from portfolio_builder.portfolios where portfolio_id = '{portfolio_id}' and session_id = '{session_id}';")
     with engine.connect() as connection:
         connection.execute(remove_query)
         connection.commit()
 
-def remove_all_portfolios_from_db():
-    truncate_query = text(f"truncate portfolio_builder.portfolios;")
+def remove_all_portfolios_from_db(session_id:str):
+    truncate_query = text(f"delete from portfolio_builder.portfolios where session_id = '{session_id}';")
     with engine.connect() as connection:
         connection.execute(truncate_query)
         connection.commit()

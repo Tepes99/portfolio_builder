@@ -5,15 +5,17 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import datetime as dt
+import uuid
 
 import ETL as etl
 
-saved_pf_ids = etl.get_portfolio_names()
-saved_pf_ids.loc['current'] = 'Current'
-
-app = Dash(__name__, prevent_initial_callbacks=False, external_stylesheets=[dbc.themes.LUX])
-application = app.server
-app.layout = dbc.Container(html.Div([
+def serve_layout():
+    session_id = str(uuid.uuid4())
+    saved_pf_ids = etl.get_portfolio_names(session_id=session_id)
+    saved_pf_ids.loc['current'] = 'Current'
+    return html.Div([
+    dcc.Store(data=session_id, id='session-id'),
+    dbc.Container(html.Div([
     html.H1(children='Portfolio Builder', style={'textAlign':'center'}),
 
     dcc.Markdown('''
@@ -109,7 +111,7 @@ app.layout = dbc.Container(html.Div([
     dbc.Row(dbc.Col(dbc.Spinner(children=[html.Div(id="breakdown")], color="success"),
                 width=12)),
     
-    dcc.Store(id='intermediate-value'),
+    dcc.Store(id='session-data-table'),
 
     dcc.Markdown('''
     
@@ -129,14 +131,20 @@ app.layout = dbc.Container(html.Div([
     '''),
 
 ],style={'margin-left': '10%','margin-right': '10%',}),fluid=True)
+    
+])
+
+app = Dash(__name__, prevent_initial_callbacks=False, external_stylesheets=[dbc.themes.LUX])
+application = app.server
+app.layout = serve_layout
 
 @app.callback(
     Output(component_id= "components", component_property= "children"),
-    Output(component_id= "intermediate-value", component_property= "data"),
+    Output(component_id= "session-data-table", component_property= "data"),
     [Input('addAssetButton', 'n_clicks')],
     [Input('deleteAssetButton', 'n_clicks')],
     [Input('clearButton', 'n_clicks')],
-    [State('intermediate-value', 'data')],
+    [State('session-data-table', 'data')],
     [State(component_id= "ticker",component_property= "value"),
     State(component_id= "purchaseAmount",component_property= "value")]
 )
@@ -171,14 +179,15 @@ def update_asset_list(add, delete, clear, data_table, ticker, amount):
             Output('not_found_tickers_save', 'children'),
             Output('already_exists_error', 'children'),
             [State('pf_name', 'value'),
-            State('intermediate-value', 'data'),
+            State('session-data-table', 'data'),
+            State('session-id', 'data'),
             Input('save_portfolio', 'n_clicks'),
             Input('remove_portfolio', 'n_clicks'),
             Input('remove_all_portfolios', 'n_clicks')])
 
-def save_portfolio(pf_name, data_table, save, remove, remove_all):
+def save_portfolio(pf_name, data_table, session_id, save, remove, remove_all):
     not_found_tickers = set()
-    saved_pf_ids = etl.get_portfolio_names()
+    saved_pf_ids = etl.get_portfolio_names(session_id=session_id)
     saved_pf_ids.loc['current'] = 'Current'
     no_tickers_error = None
     already_exists_error = None
@@ -190,8 +199,8 @@ def save_portfolio(pf_name, data_table, save, remove, remove_all):
     buttonPressed = ctx.triggered[0]['prop_id'].split('.')[0]
     if buttonPressed == "save_portfolio":
         if pf_name not in saved_pf_ids.values:
-            not_found_tickers = etl.save_portfolio_to_db(contribution=portfolio_assets['Amount'], portfolio_id=pf_name)
-            saved_pf_ids = etl.get_portfolio_names()
+            not_found_tickers = etl.save_portfolio_to_db(contribution=portfolio_assets['Amount'], portfolio_id=pf_name,session_id=session_id)
+            saved_pf_ids = etl.get_portfolio_names(session_id=session_id)
             saved_pf_ids.loc['current'] = 'Current'
         else:
             already_exists_error = f'Error when saving the portfolio > Portfolio {pf_name} already exists'
@@ -202,12 +211,12 @@ def save_portfolio(pf_name, data_table, save, remove, remove_all):
             no_tickers_error = None
     
     if buttonPressed == "remove_portfolio":
-        etl.remove_portfolio_from_db(pf_name)
-        saved_pf_ids = etl.get_portfolio_names()
+        etl.remove_portfolio_from_db(portfolio_id=pf_name,session_id=session_id)
+        saved_pf_ids = etl.get_portfolio_names(session_id=session_id)
         saved_pf_ids.loc['current'] = 'Current'
     if buttonPressed == "remove_all_portfolios":
-        etl.remove_all_portfolios_from_db()
-        saved_pf_ids = etl.get_portfolio_names()
+        etl.remove_all_portfolios_from_db(session_id=session_id)
+        saved_pf_ids = etl.get_portfolio_names(session_id=session_id)
         saved_pf_ids.loc['current'] = 'Current'
     return [{'label': f'{id}', 'value': id} for id in saved_pf_ids['portfolio_id']], dcc.Markdown(no_tickers_error), dcc.Markdown(already_exists_error)
 
@@ -219,12 +228,13 @@ def save_portfolio(pf_name, data_table, save, remove, remove_all):
     Output(component_id="pie-chart", component_property="figure"),
     Output(component_id="not_found_tickers", component_property="children"),
     [Input('createPortfolio', 'n_clicks'),
-    State('intermediate-value', 'data'),
+    State('session-data-table', 'data'),
+    State('session-id', 'data'),
     State(component_id= "years", component_property= "value"),
     State(component_id= "confidence", component_property= "value"),
     State(component_id= "portfolio_id",component_property= "value")])
 
-def updatePlot(update, data_table, years, confidence, portfolio_id):
+def updatePlot(update, data_table, session_id, years, confidence, portfolio_id):
     startDate = dt.datetime.now()
     endDate = startDate + dt.timedelta(days= int(years)*365)
     #Confidence level
@@ -247,7 +257,7 @@ def updatePlot(update, data_table, years, confidence, portfolio_id):
         portfolio.index = portfolio['index']
         portfolio.rename(columns={'index': 'ticker'}, inplace=True)
     else:
-        portfolio = etl.get_saved_portfolio(portfolio_name=portfolio_id)
+        portfolio = etl.get_saved_portfolio(portfolio_name=portfolio_id, session_id=session_id)
         portfolio.index = portfolio['ticker']
         portfolio.drop('portfolio_id', axis=1, inplace=True)
         not_found_tickers = set()
@@ -302,7 +312,7 @@ def updatePlot(update, data_table, years, confidence, portfolio_id):
 
     fig.update_traces(mode='lines')
 
-    portfolio = portfolio.round(4)
+    portfolio = portfolio.round(4).sort_values(by='amount', ascending=True)
     pieData = portfolio.drop('Portfolio')
 
     pie = go.Figure(go.Pie(
@@ -331,5 +341,5 @@ def updatePlot(update, data_table, years, confidence, portfolio_id):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
-    #application.run(debug=True, port=8080)
+    #app.run_server(debug=True)
+    application.run(debug=True, port=8080)
