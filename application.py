@@ -8,8 +8,6 @@ import datetime as dt
 
 import ETL as etl
 
-portfolio_assets = pd.DataFrame(columns=['Ticker Symbol', 'Amount'])
-
 saved_pf_ids = etl.get_portfolio_names()
 saved_pf_ids.loc['current'] = 'Current'
 
@@ -110,6 +108,8 @@ app.layout = dbc.Container(html.Div([
 
     dbc.Row(dbc.Col(dbc.Spinner(children=[html.Div(id="breakdown")], color="success"),
                 width=12)),
+    
+    dcc.Store(id='intermediate-value'),
 
     dcc.Markdown('''
     
@@ -132,13 +132,19 @@ app.layout = dbc.Container(html.Div([
 
 @app.callback(
     Output(component_id= "components", component_property= "children"),
+    Output(component_id= "intermediate-value", component_property= "data"),
     [Input('addAssetButton', 'n_clicks')],
     [Input('deleteAssetButton', 'n_clicks')],
     [Input('clearButton', 'n_clicks')],
+    [State('intermediate-value', 'data')],
     [State(component_id= "ticker",component_property= "value"),
     State(component_id= "purchaseAmount",component_property= "value")]
 )
-def update_asset_list(add, delete, clear, ticker, amount):
+def update_asset_list(add, delete, clear, data_table, ticker, amount):
+    if data_table == None:
+        portfolio_assets = pd.DataFrame(columns=['Ticker Symbol', 'Amount'])
+    else:
+        portfolio_assets = pd.read_json(data_table, orient='split')
     ctx = callback_context
     buttonPressed = ctx.triggered[0]['prop_id'].split('.')[0]
     if buttonPressed == "addAssetButton":
@@ -157,7 +163,7 @@ def update_asset_list(add, delete, clear, ticker, amount):
         bordered=True,
         hover=True,
         size='sm'
-        )
+        ), portfolio_assets.to_json(date_format='iso', orient='split')
 
 # Callback for saving the portfolio
 @app.callback(
@@ -165,17 +171,21 @@ def update_asset_list(add, delete, clear, ticker, amount):
             Output('not_found_tickers_save', 'children'),
             Output('already_exists_error', 'children'),
             [State('pf_name', 'value'),
+            State('intermediate-value', 'data'),
             Input('save_portfolio', 'n_clicks'),
             Input('remove_portfolio', 'n_clicks'),
             Input('remove_all_portfolios', 'n_clicks')])
 
-def save_portfolio(pf_name, save, remove, remove_all):
+def save_portfolio(pf_name, data_table, save, remove, remove_all):
     not_found_tickers = set()
     saved_pf_ids = etl.get_portfolio_names()
     saved_pf_ids.loc['current'] = 'Current'
     no_tickers_error = None
     already_exists_error = None
-
+    if data_table == None:
+        portfolio_assets = pd.DataFrame(columns=['Ticker Symbol', 'Amount'])
+    else:
+        portfolio_assets = pd.read_json(data_table, orient='split')
     ctx = callback_context
     buttonPressed = ctx.triggered[0]['prop_id'].split('.')[0]
     if buttonPressed == "save_portfolio":
@@ -209,11 +219,12 @@ def save_portfolio(pf_name, save, remove, remove_all):
     Output(component_id="pie-chart", component_property="figure"),
     Output(component_id="not_found_tickers", component_property="children"),
     [Input('createPortfolio', 'n_clicks'),
+    State('intermediate-value', 'data'),
     State(component_id= "years", component_property= "value"),
     State(component_id= "confidence", component_property= "value"),
     State(component_id= "portfolio_id",component_property= "value")])
 
-def updatePlot(update, years, confidence, portfolio_id):
+def updatePlot(update, data_table, years, confidence, portfolio_id):
     startDate = dt.datetime.now()
     endDate = startDate + dt.timedelta(days= int(years)*365)
     #Confidence level
@@ -226,7 +237,10 @@ def updatePlot(update, years, confidence, portfolio_id):
     if confidence == '99%':
         z = 2.576
 
-    
+    if data_table == None:
+        portfolio_assets = pd.DataFrame(columns=['Ticker Symbol', 'Amount'])
+    else:
+        portfolio_assets = pd.read_json(data_table, orient='split')
     if portfolio_id == 'Current':
         portfolio, not_found_tickers = etl.calculate_key_figures(portfolio_assets['Amount'])
         portfolio = portfolio.reset_index()
@@ -317,4 +331,5 @@ def updatePlot(update, years, confidence, portfolio_id):
 
 
 if __name__ == '__main__':
-    application.run(debug=True, port=8080)
+    app.run_server(debug=True)
+    #application.run(debug=True, port=8080)
