@@ -1,6 +1,5 @@
 from dash import Dash, html, dcc, callback, callback_context, Output, Input, State
 import dash
-from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
@@ -35,11 +34,13 @@ def serve_layout():
 
     dbc.Row(dbc.Col(html.Div(["Stock ticker: ",
         dbc.Input(id="ticker",value="SPY",type= "text")]),
-                width=12
+                width=3
     )),
-    html.Div(["Purchase Amount: ",
+    dbc.Row(dbc.Col(html.Div(["Purchase Amount: ",
         dbc.Input(id="purchaseAmount",value="10000",type= "text")]),
-
+                width=3
+    )),
+    
     dbc.Button(id='addAssetButton', n_clicks=0, children='Add Asset'),
     dbc.Button(id='deleteAssetButton', n_clicks=0, children='Delete Asset'),
     dbc.Button(id='clearButton', n_clicks=0, children='Clear Portfolio'),
@@ -51,7 +52,7 @@ def serve_layout():
     ###### Chosen assets:
     '''),
     dbc.Row(dbc.Col(html.Div(id="components"),
-                width=12
+                width=5
     )),
 
     dbc.Row(dbc.Col(html.Div(["Name of your portfolio: ",
@@ -332,6 +333,8 @@ def updatePlot(update, data_table, session_id, years, confidence, portfolio_id):
         error_message = f'Error when plotting the portfolio > Could not find ticker(s): {not_found_tickers}'
     else:
         error_message = None
+    
+    portfolio.columns = portfolio.columns.str.replace('_', ' ').str.capitalize()
     return fig, dbc.Table.from_dataframe(
         portfolio,
         striped=True,
