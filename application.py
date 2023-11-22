@@ -9,6 +9,8 @@ app.layout = html.Div([
         children=[
             dbc.NavItem(dbc.NavLink("Cars", href="/cars-demo")),
             dbc.NavItem(dbc.NavLink("Portfolio Builder", href="/pf-builder")),
+            dbc.NavItem(dbc.NavLink("B.Sc Thesis", href="https://aaltodoc.aalto.fi/server/api/core/bitstreams/16fe675d-0aed-4d77-bbf1-a6d042209113/content")),
+            
         ],
         brand="Home",
         brand_href="/",

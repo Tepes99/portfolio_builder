@@ -15,7 +15,7 @@ layout = html.Div([
         #### B.Sc School of Business
         - Major: Information and Service Management
         - Minor: Finance
-                 '''),
+                '''),
     html.Br(),  
     dcc.Markdown('''
             ## Projects on this site
