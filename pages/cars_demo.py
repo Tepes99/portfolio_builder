@@ -73,7 +73,7 @@ layout = dbc.Container(html.Div([
             ),
         ]
     )
-],style={'margin-left': '10%','margin-right': '10%',}),fluid=True
+],style={'margin-left': '5%','margin-right': '5%',}),fluid=True
 )
 
 
