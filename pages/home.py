@@ -35,9 +35,9 @@ layout = html.Div([
 
             #### Stack
             - Cloud platform: AWS, Microsoft Azure
-            - Main libraries: Dash, Pandas, databricks-sql-connector
-            - Database: Azure Databricks Serverless SQL Warehouse
+            - Main libraries: Dash, Pandas, sqlalchemy
+            - Database:  Moved from Azure serverless to AWS PostgreSQL on (11.12.2023)
             - Data preparation: Azure Databricks, Spark
-            - Nice to know: The SQL Warehouse goes to sleep after 10 mins of inactivity for cost reasons. (Don't get discouraged if the initial loading of figures takes time!)
+            - Nice to know: Database was originally in Azure Databricks. It was moved for  cost reasons.
                  ''')
 ],style={'margin-left': '30%','margin-right': '30%','margin-top': '3%'})

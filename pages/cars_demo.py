@@ -3,12 +3,12 @@ import dash_bootstrap_components as dbc
 import dash
 from dash import callback
 import pandas as pd
-import AZURE_ETL as aetl
+import ETL as etl
 
 
 dash.register_page(__name__)
 
-data = aetl.query_db('select * from cars_demo_public;')
+data = etl.get_cars_table()
 df = pd.DataFrame(data)
 df.columns = df.columns.str.replace('_', ' ').str.capitalize()
 

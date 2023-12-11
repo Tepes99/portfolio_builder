@@ -165,3 +165,6 @@ def remove_all_portfolios_from_db(session_id:str):
     with engine.connect() as connection:
         connection.execute(truncate_query)
         connection.commit()
+
+def get_cars_table()-> pd.DataFrame:
+    return pd.read_sql("select * from cars_demo.cars", con=engine)
