@@ -6,6 +6,4 @@ It is a proof of consept of a portfolio building app, where user can choose what
 
 It also offers the option to save to and load portfolios from postgres database
 
-Currently the app is hosted on AWS and deployed with elastic beanstalk and RDS
-
-Find it [here](http://pf-builder-env.eba-hu3nvuyh.eu-north-1.elasticbeanstalk.com/)
+Currently the app no longer hosted on AWS but  was deployed with elastic beanstalk and RDS
